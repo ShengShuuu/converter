@@ -1,0 +1,18 @@
+{# Add/Delete re-render the whole list: deleting shifts every later row index (and its PATCH URLs). #}
+<section id="line-items" class="editor-section" aria-labelledby="lines-heading">
+  <h2 id="lines-heading" class="editor-section__title">Items <span class="muted">({{ line_rows | length }})</span></h2>
+  {% if line_rows %}
+  <ol class="line-list">
+    {% for row in line_rows %}{% include "_line_row.html" %}{% endfor %}
+  </ol>
+  {% else %}
+  <p class="empty-state">We couldn't find any items on this scan. Click "Add item" and type in each item from the scan.</p>
+  {% endif %}
+  {# v1: hx-post="/conversions/{{ conversion.id }}/lines" #}
+  <button type="button" id="add-line" class="btn btn--secondary"
+          hx-post="{{ order_url }}/lines"
+          hx-target="#line-items" hx-swap="outerHTML"
+          hx-sync="#review-editor:queue all"
+          hx-disabled-elt="this"
+          data-focus-after="last-line">Add item</button>
+</section>

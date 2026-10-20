@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set current_step = "template" %}
+{% block title %}Choose template{% endblock %}
+{% block content %}
+<section class="panel" aria-labelledby="choose-heading">
+  <h1 id="choose-heading">Choose your Excel template</h1>
+  <p class="lead">Your download will follow this template's columns. The same template is used for every order in this file.</p>
+
+  {% if error %}{% with message = error %}{% include "_form_error.html" %}{% endwith %}{% endif %}
+
+  {% if templates %}
+  <form method="post" action="/conversions/{{ conversion.id }}/template" data-disable-on-submit>
+    <fieldset class="choice-list">
+      <legend class="visually-hidden">Saved templates</legend>
+      {% for t in templates %}
+      <label class="choice">
+        <input type="radio" name="template_id" value="{{ t.id }}" required
+               {%- if (selected_template_id is defined and selected_template_id == t.id) or (templates | length == 1) %} checked{% endif %}>
+        <span class="choice__body">
+          <span class="choice__title">{{ t.name }}</span>
+          <span class="choice__meta">
+            {% if t.headers is defined and t.headers %}{{ t.headers | length }} columns &middot; {% endif %}added {{ m.fmt_datetime(t.created_at) }}
+          </span>
+        </span>
+      </label>
+      {% endfor %}
+    </fieldset>
+    <div class="form-actions">
+      <button type="submit" class="btn btn--primary">Use this template</button>
+      {# v1: <a class="btn btn--ghost" href="/conversions/{{ conversion.id }}">Back to review</a> #}
+      <a class="btn btn--ghost" href="{{ batch_url }}">Back to all pages</a>
+    </div>
+  </form>
+  {% else %}
+  <p class="empty-state">No templates yet. Add the Excel file you want your download to look like.</p>
+  {% endif %}
+
+  <p class="section-link">
+    {# v1: next=('/conversions/%s/template' | format(conversion.id)) #}
+    <a href="/templates?next={{ ('%s/template' | format(batch_url)) | urlencode }}">Add or manage templates</a>
+  </p>
+</section>
+{% endblock %}

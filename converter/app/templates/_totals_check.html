@@ -1,0 +1,30 @@
+{# Always carries hx-swap-oob: harmless on full-page render, swaps itself in fragment responses. #}
+{% set has_sum = totals.lines_sum is not none and totals.lines_sum != "" %}
+{% set has_total = totals.total is not none and totals.total != "" %}
+{% set mismatch = has_sum and not totals.agrees %}
+{# Backend compares lines against untaxed_total when the form printed one, otherwise total. #}
+{% set compared_field = totals.compared_field if totals.compared_field is defined and totals.compared_field else "total" %}
+{% set compared_label = {"untaxed_total": "Untaxed amount", "total": "Total"}.get(compared_field, "Total") %}
+<div id="totals-check" hx-swap-oob="true"
+     class="totals-check {{ 'totals-check--mismatch' if mismatch else ('totals-check--ok' if has_sum else '') }}">
+  <dl class="totals-check__figures">
+    {# v1: <dd>{{ totals.lines_sum if has_sum else "Not all line amounts are filled in" }}</dd> / <dd>{{ totals.total if has_total else "Blank" }}</dd> #}
+    <div><dt>Items add up to</dt><dd>{{ totals.lines_sum | peso if has_sum else "Some item amounts are still blank" }}</dd></div>
+    <div><dt>{{ compared_label }} on the form</dt><dd>{{ totals.total | peso if has_total else "Blank" }}</dd></div>
+  </dl>
+  {% if mismatch %}
+  <p class="totals-check__note"><span class="tier-badge tier-badge--check">Check this</span>
+    {% if has_total %}These don't match. An item amount or the {{ compared_label | lower }} may be wrong; compare both with the scan.{% else %}We couldn't read the {{ compared_label | lower }} on the form.{% endif %}
+  </p>
+  {# Explicit user action only: the amount is never auto-filled from the line sum. #}
+  {# v1: hx-patch="/conversions/{{ conversion.id }}/order/{{ compared_field }}" #}
+  <button type="button" class="btn btn--secondary"
+          hx-patch="{{ order_url }}/order/{{ compared_field }}"
+          hx-vals='{{ {"value": totals.lines_sum | string} | tojson }}'
+          hx-target="#cell-{{ compared_field }}" hx-swap="outerHTML"
+          hx-sync="#review-editor:queue all"
+          hx-disabled-elt="this">Use the item sum as {{ compared_label }}</button>
+  {% elif has_sum %}
+  <p class="totals-check__note">Items and {{ compared_label | lower }} match. Still compare with the scan, since both can be misread the same way.</p>
+  {% endif %}
+</div>

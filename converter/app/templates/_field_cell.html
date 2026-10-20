@@ -1,0 +1,55 @@
+{% import "_macros.html" as m %}
+{% set is_line = cell.line_index is defined and cell.line_index is not none %}
+{% if is_line %}
+  {# v1: {% set patch_url = "/conversions/%s/lines/%s/%s" | format(conversion.id, cell.line_index, cell.field) %} #}
+  {% set patch_url = "%s/lines/%s/%s" | format(order_url, cell.line_index, cell.field) %}
+  {% set dom_id = "cell-line-%s-%s" | format(cell.line_index, cell.field) %}
+{% else %}
+  {# v1: {% set patch_url = "/conversions/%s/order/%s" | format(conversion.id, cell.field) %} #}
+  {% set patch_url = "%s/order/%s" | format(order_url, cell.field) %}
+  {% set dom_id = "cell-" ~ cell.field %}
+{% endif %}
+{% set tier = cell.tier or "ok" %}
+{% set needs_attention = tier in ("not_read", "check", "verify") %}
+{% set has_value = cell.value is not none and cell.value != "" %}
+{# Set when the backend rejected the typed value (422): the unsaved text is kept so it can be fixed. #}
+{% set input_error = cell.error if cell.error is defined and cell.error else none %}
+<div id="{{ dom_id }}" class="field-cell tier--{{ tier }}{% if input_error %} field-cell--invalid{% endif %}"
+     data-field="{{ cell.field }}"
+     {%- if is_line %} data-line="{{ cell.line_index }}"{% endif %}
+     {%- if cell.bbox %} data-bbox="{{ cell.bbox.left }},{{ cell.bbox.top }},{{ cell.bbox.width }},{{ cell.bbox.height }}"{% endif %}
+     {%- if needs_attention %} data-attention{% endif %}>
+  <label class="field-cell__label" for="{{ dom_id }}-input">{{ cell.label }}</label>
+  {% set is_money = cell.kind == "money" %}
+  {# The peso sign sits beside the input, never in its value: the submitted text must stay a plain number. #}
+  <div class="cell-input-wrap{% if is_money %} cell-input-wrap--money{% endif %}">
+    {%- if is_money %}<span class="cell-input-wrap__prefix" aria-hidden="true">&#8369;</span><span class="visually-hidden" id="{{ dom_id }}-currency">Amount in pesos.</span>{% endif %}
+  <input id="{{ dom_id }}-input" class="cell-input" name="value" type="text"
+         value="{{ cell.value if has_value else '' }}"
+         autocomplete="off" spellcheck="false"
+         {%- if cell.kind in ("money", "number") %} inputmode="decimal"{% endif %}
+         {%- if cell.placeholder %} placeholder="{{ cell.placeholder }}"{% endif %}
+         {%- if tier == "not_read" or input_error %} aria-invalid="true"{% endif %}
+         aria-describedby="{% if is_money %}{{ dom_id }}-currency {% endif %}{{ dom_id }}-status"
+         hx-patch="{{ patch_url }}" hx-trigger="change"
+         hx-target="closest .field-cell" hx-swap="outerHTML"
+         hx-sync="#review-editor:queue all">
+  </div>
+  {# Whitespace-trimmed so an "ok" cell's status div is truly :empty and collapses. #}
+  <div class="field-cell__status" id="{{ dom_id }}-status">
+    {{- m.tier_badge(tier) -}}
+    {%- if tier == "not_read" and cell.raw_text %}<span class="field-cell__raw">We read: <code>{{ cell.raw_text }}</code></span>{% endif -%}
+    {%- if input_error %}<span class="field-cell__error">Not saved: {{ input_error }}</span>{% endif -%}
+    {%- for message in cell.messages or [] if message != input_error %}<span class="field-cell__msg">{{ message }}</span>{% endfor -%}
+  </div>
+  {# Hidden while a rejected value is on screen: confirming would approve the stored value, not the visible one. #}
+  {% if needs_attention and not input_error %}
+  {# v1: hx-post="/conversions/{{ conversion.id }}/confirm/{{ cell.key | urlencode }}" #}
+  <button type="button" class="btn btn--small btn--confirm"
+          hx-post="{{ order_url }}/confirm/{{ cell.key | urlencode }}"
+          hx-target="closest .field-cell" hx-swap="outerHTML"
+          hx-sync="#review-editor:queue all"
+          hx-disabled-elt="this"
+          aria-label="{{ cell.label }}: {{ 'value' if has_value else 'blank' }} is correct">{{ "This is correct" if has_value else "Blank is correct" }}</button>
+  {% endif %}
+</div>

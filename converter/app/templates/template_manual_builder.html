@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{# Only same-site relative paths, so a crafted ?next= can't point off-site or at javascript:. #}
+{% set next = next if (next is string and next.startswith("/") and not next.startswith("//")) else none %}
+{% if next %}{% set current_step = "template" %}{% endif %}
+{% block title %}Build a template{% endblock %}
+
+{% macro builder_row(header="", selected="", text="") %}
+{% set is_custom = selected == custom_choice %}
+<tr class="builder-row">
+  <td><input name="header" type="text" maxlength="255" autocomplete="off" aria-label="Column name" value="{{ header }}"></td>
+  <td>
+    <select name="field" aria-label="What goes in it" @change="onFieldChange">
+      {# <option value=""{% if not selected %} selected{% endif %}>Custom / fill in manually</option> #}
+      <option value=""{% if not selected %} selected{% endif %}>Leave empty</option>
+      <option value="{{ custom_choice }}" data-custom{% if is_custom %} selected{% endif %}>{{ custom_label }}</option>
+      {% for option in field_options %}
+      <option value="{{ option.value }}"{% if selected == option.value %} selected{% endif %}>{{ option.label }}</option>
+      {% endfor %}
+    </select>
+    {# Never disabled: every row must submit a field_text so the repeated fields stay aligned. #}
+    <input class="custom-text" name="field_text" type="text" maxlength="255" autocomplete="off"
+           aria-label="Text for every row of this column" placeholder="Text for every row"
+           value="{{ text }}"{% if not is_custom %} hidden{% endif %}>
+  </td>
+  <td><button type="button" class="btn btn--small btn--danger-ghost" @click="removeRow">Remove</button></td>
+</tr>
+{% endmacro %}
+
+{% block content %}
+<p class="back-link"><a href="/templates{% if next %}?next={{ next | urlencode }}{% endif %}">All templates</a></p>
+
+<section class="panel" aria-labelledby="builder-heading">
+  <h1 id="builder-heading">Build a template by hand</h1>
+  <p class="lead">Type your column names in the order you want them in the download, then choose what goes into each one. "Custom / fill in manually" puts the same text you type into every row; "Leave empty" keeps the column blank.</p>
+
+  {% if error %}{% with message = error %}{% include "_form_error.html" %}{% endwith %}{% endif %}
+
+  <form method="post" action="/templates/manual" data-disable-on-submit x-data="templateBuilder">
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <div class="field">
+      <label for="template-name" class="field__label">Template name</label>
+      <input id="template-name" name="name" type="text" required maxlength="120" autocomplete="off"
+             value="{{ form_name | default('') }}">
+    </div>
+    <table class="mapping-table">
+      <thead>
+        <tr><th scope="col">Column name</th><th scope="col">What goes in it</th><th scope="col"><span class="visually-hidden">Remove</span></th></tr>
+      </thead>
+      <tbody x-ref="rows">
+        {% for row in rows %}{{ builder_row(row.header, row.selected, row.text) }}{% endfor %}
+      </tbody>
+    </table>
+    <template x-ref="rowTemplate">{{ builder_row() }}</template>
+    <div class="form-actions">
+      <button type="button" class="btn btn--ghost" @click="addRow">Add column</button>
+      <button type="submit" class="btn btn--primary">Create template</button>
+      <a class="btn btn--ghost" href="/templates{% if next %}?next={{ next | urlencode }}{% endif %}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

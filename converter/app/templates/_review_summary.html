@@ -1,0 +1,27 @@
+{# Always carries hx-swap-oob: harmless on full-page render, swaps itself in fragment responses. #}
+{% set unchecked = summary.unchecked_count | default(0) %}
+{% set field_count = summary.field_count | default(0) %}
+<section id="review-summary" hx-swap-oob="true"
+         class="review-summary {{ 'review-summary--done' if unchecked == 0 else 'review-summary--pending' }}"
+         aria-labelledby="review-summary-heading">
+  <h2 id="review-summary-heading" class="visually-hidden">Review progress</h2>
+  <p class="review-summary__count">
+    {% if unchecked == 0 %}
+      <span class="tier-badge tier-badge--checked">Checked</span> All fields are checked.
+    {% else %}
+      <strong>{{ unchecked }} of {{ field_count }}</strong> fields still to check
+    {% endif %}
+  </p>
+  {% if field_count %}
+  <progress class="review-summary__progress" max="{{ field_count }}" value="{{ field_count - unchecked }}"
+            aria-label="Fields checked: {{ field_count - unchecked }} of {{ field_count }}"></progress>
+  {% endif %}
+  {% if summary.messages %}
+  <ul class="review-summary__messages">
+    {% for message in summary.messages %}<li>{{ message }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if unchecked %}
+  <button type="button" class="btn btn--secondary" @click="jumpToNextUnchecked">Go to the next field to check</button>
+  {% endif %}
+</section>

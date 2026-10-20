@@ -1,0 +1,61 @@
+{# Superseded by batch.html/_batch_status.html; no route renders this. Kept for rollback only. #}
+{% set polling = conversion.status in ("queued", "processing") %}
+{# Polling stops on its own: the non-polling states render without hx-trigger. #}
+<section id="conversion-status" class="panel status-panel status-panel--{{ conversion.status }}"
+         aria-labelledby="status-heading"
+         {% if polling %}hx-get="/conversions/{{ conversion.id }}/status" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+
+  {% if polling %}
+  <h1 id="status-heading">Reading your scan</h1>
+  <div class="progress-row" role="status" aria-live="polite">
+    <span class="spinner spinner--large" aria-hidden="true"></span>
+    <div>
+      <p class="progress-row__state">{{ "Waiting to start" if conversion.status == "queued" else "Reading text from the page" }}</p>
+      <p class="progress-row__elapsed">Elapsed: {{ elapsed_seconds | default(0) | int }}s</p>
+    </div>
+  </div>
+  {# <p class="muted">This usually takes under a minute. You can leave this page open; it will move to the review step on its own when reading is finished.</p> #}
+  <p class="muted">This usually takes 10-25 seconds. You can leave this page open; it will move to the review step on its own when reading is finished.</p>
+
+  {% elif conversion.status == "failed" %}
+  <h1 id="status-heading">Reading failed</h1>
+  <div class="notice notice--error" role="alert">
+    <p class="notice__title">We couldn't finish reading this file.</p>
+    <p>{{ conversion.error or "An unexpected error stopped processing." }}</p>
+  </div>
+  <div class="form-actions">
+    <button type="button" class="btn btn--primary"
+            hx-post="/conversions/{{ conversion.id }}/retry"
+            hx-target="#conversion-status" hx-swap="outerHTML"
+            hx-disabled-elt="this">Retry</button>
+    <a class="btn btn--ghost" href="/">Upload a different file</a>
+  </div>
+
+  {% elif conversion.status == "not_sales_order" %}
+  <h1 id="status-heading">This doesn't look like a Sales Order</h1>
+  <div class="notice notice--warning" role="status">
+    <p class="notice__title">The page didn't match the Sales Order layout we recognize.</p>
+    <p>Other documents, like receipts, invoices and delivery forms, are not supported. A faded or tilted scan of a real Sales Order can also land here.</p>
+    {% if conversion.classifier_score is defined and conversion.classifier_score is not none %}
+    <p class="muted">Match score: {{ conversion.classifier_score }}{% if conversion.classifier_threshold is defined and conversion.classifier_threshold is not none %} (needed: {{ conversion.classifier_threshold }}){% endif %}</p>
+    {% endif %}
+  </div>
+  <p>If this is a Sales Order, you can still extract it. Expect more fields to need checking.</p>
+  <div class="form-actions">
+    <button type="button" class="btn btn--primary"
+            hx-post="/conversions/{{ conversion.id }}/extract-anyway"
+            hx-target="#conversion-status" hx-swap="outerHTML"
+            hx-disabled-elt="this">Extract anyway</button>
+    <a class="btn btn--ghost" href="/">Upload a different file</a>
+  </div>
+
+  {% elif conversion.status == "done" %}
+  {# Normally unseen: the backend answers a done poll with HX-Redirect. #}
+  <h1 id="status-heading">Reading finished</h1>
+  <p><a class="btn btn--primary" href="/conversions/{{ conversion.id }}">Open review</a></p>
+
+  {% else %}
+  <h1 id="status-heading">Unknown status</h1>
+  <p>This conversion is in an unexpected state ({{ conversion.status }}). <a href="/">Back to uploads</a></p>
+  {% endif %}
+</section>

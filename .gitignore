@@ -1,0 +1,17 @@
+# Runtime data: uploaded scans, OCR output, SQLite DB. Can contain real customer PII.
+data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.log
+
+# Local Claude Code settings (may contain machine-specific/unrelated permissions, never shared)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
+# OS
+.DS_Store
+Thumbs.db

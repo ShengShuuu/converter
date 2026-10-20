@@ -1,0 +1,160 @@
+{% import "_macros.html" as m %}
+{# Polling stops on its own: once nothing is pending the fragment renders without hx-trigger. #}
+{% set counts = progress.counts %}
+{% set done_rows = pages | selectattr("status", "equalto", "done") | list %}
+{% set attention_count = done_rows | selectattr("needs_attention") | list | length %}
+{% set conversion_failed = conversion.status == "failed" %}
+<section id="batch-status" class="batch" aria-labelledby="batch-heading"
+         {% if is_processing %}hx-get="{{ batch_url }}/status" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+
+  <div class="panel batch__summary">
+    {% if is_processing %}
+    <h1 id="batch-heading">Reading your file</h1>
+    <div class="progress-row">
+      <span class="spinner spinner--large" aria-hidden="true"></span>
+      <div>
+        {% if progress.total %}
+        <p class="progress-row__state" role="status">{{ progress.finished }} of {{ progress.total }} pages done</p>
+        {% else %}
+        <p class="progress-row__state" role="status">{{ "Waiting to start" if conversion.status == "queued" else "Counting pages..." }}</p>
+        {% endif %}
+        <p class="progress-row__elapsed">Time so far: {{ elapsed_seconds | default(0) | int }}s</p>
+      </div>
+    </div>
+    {% if progress.total %}
+    <progress class="batch__progress" max="{{ progress.total }}" value="{{ progress.finished }}"
+              aria-label="Pages read: {{ progress.finished }} of {{ progress.total }}"></progress>
+    {% endif %}
+    <p class="muted">Each page takes about 10-25 seconds. You can start checking finished orders now. This list updates by itself.</p>
+
+    {% elif conversion_failed %}
+    <h1 id="batch-heading">Something went wrong</h1>
+
+    {% else %}
+    <h1 id="batch-heading">{{ progress.total }} page{{ "s" if progress.total != 1 }} read</h1>
+    <p class="batch__counts">
+      <strong>{{ counts.done }} order{{ "s" if counts.done != 1 }} found</strong>
+      {%- if counts.not_sales_order %} &middot; {{ counts.not_sales_order }} not a Sales Order{% endif %}
+      {%- if counts.skipped %} &middot; {{ counts.skipped }} skipped{% endif %}
+      {%- if counts.failed %} &middot; <span class="batch__counts-failed">{{ counts.failed }} couldn't be read</span>{% endif %}
+    </p>
+    {% endif %}
+
+    {% if conversion.original_filename %}<p class="file-context">File: <strong>{{ conversion.original_filename }}</strong></p>{% endif %}
+
+    {% if conversion_failed %}
+    <div class="notice notice--error" role="alert">
+      <p class="notice__title">We couldn't finish reading this file.</p>
+      <p>{{ conversion.error or "Something unexpected stopped the reading." }}</p>
+    </div>
+    {% endif %}
+
+    <div class="form-actions">
+      {% if can_export %}
+      <a class="btn btn--primary" id="batch-continue" href="{{ template_url }}">Next: choose Excel template</a>
+      {% if attention_count %}<p class="muted batch__hint">{{ attention_count }} order{{ "s still have" if attention_count != 1 else " still has" }} fields to check. You can still go on; you'll be asked to confirm before downloading.</p>{% endif %}
+      {% else %}
+      <button type="button" class="btn btn--primary" disabled aria-describedby="batch-continue-why">Next: choose Excel template</button>
+      <p class="muted batch__hint" id="batch-continue-why">
+        {%- if is_processing %}Available when every page has been read.
+        {%- elif conversion_failed %}Try reading the file again first.
+        {%- else %}No Sales Orders were found in this file. If a page below is one, click "Read it anyway" on it.{% endif -%}
+      </p>
+      {% endif %}
+      {% if conversion_failed or counts.failed > 1 %}
+      <button type="button" class="btn btn--secondary" id="batch-retry-all"
+              hx-post="{{ batch_url }}/retry" hx-target="#batch-status" hx-swap="outerHTML"
+              hx-sync="#batch-status:replace" hx-disabled-elt="this">{{ "Try again" if conversion_failed and not counts.failed else "Try all failed pages again" }}</button>
+      {% endif %}
+      {% if conversion_failed %}<a class="btn btn--ghost" href="/">Upload a different file</a>{% endif %}
+    </div>
+  </div>
+
+  {% if pages %}
+  <section class="panel" aria-labelledby="pages-heading">
+    <h2 id="pages-heading">Pages</h2>
+    <ol class="page-list">
+      {% for row in pages %}
+      {% set row_id = "page-%s" | format(row.page_number) %}
+      {# tabindex=-1: focus lands here after an action replaces the button that was clicked. #}
+      <li class="page-row page-row--{{ row.status }}" id="{{ row_id }}" tabindex="-1"
+          aria-labelledby="{{ row_id }}-title" aria-describedby="{{ row_id }}-status">
+        <h3 class="page-row__title" id="{{ row_id }}-title">Page {{ row.page_number }}</h3>
+        <div class="page-row__status">{{ m.page_status_badge(row.status, row_id ~ "-status") }}</div>
+
+        <div class="page-row__body">
+          {% if row.status == "done" %}
+          <p class="page-row__order">
+            <span class="page-row__ref">{{ row.order_ref or "No order number found" }}</span>
+            {%- if row.customer %} <span class="page-row__customer">{{ row.customer }}</span>{% endif %}
+          </p>
+          <p class="page-row__meta">
+            {# v1: Total: {{ row.total if row.total else "not read" }} #}
+            {{ row.line_count }} item{{ "s" if row.line_count != 1 }} &middot; Total: {{ row.total | peso if row.total else "not found" }}
+          </p>
+          {% if row.unchecked_count %}
+          <p class="page-row__attention"><span class="tier-badge tier-badge--check">{{ row.unchecked_count }} field{{ "s" if row.unchecked_count != 1 }} to check</span></p>
+          {% elif not row.item_table_warnings %}
+          <p class="page-row__attention"><span class="tier-badge tier-badge--checked">All fields checked</span></p>
+          {% endif %}
+          {% if row.item_table_warnings %}
+          <ul class="page-row__warnings">{% for warning in row.item_table_warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+          {% endif %}
+
+          {% elif row.status == "not_sales_order" %}
+          <p>This doesn't look like a Sales Order, so it was left out.
+            {%- if row.classifier_score is not none %} <span class="muted">Match score {{ row.classifier_score }} (needs {{ classifier_threshold }}).</span>{% endif %}</p>
+
+          {% elif row.status == "failed" %}
+          <p class="page-row__error">{{ row.error or "Something unexpected stopped us reading this page." }}</p>
+
+          {% elif row.status == "skipped" %}
+          <p>Skipped. It won't be in the download.</p>
+
+          {% elif row.status == "processing" %}
+          <p class="muted">Reading this page...</p>
+
+          {% elif row.status == "queued" %}
+          <p class="muted">Waiting its turn.</p>
+          {% endif %}
+        </div>
+
+        {% if row.review_url or row.can_retry or row.can_extract_anyway or row.can_skip %}
+        <div class="page-row__actions">
+          {% if row.review_url %}
+          <a class="btn btn--small {{ 'btn--primary' if row.needs_attention else 'btn--secondary' }}" id="{{ row_id }}-review" href="{{ row.review_url }}">
+            {{ "Check" if row.needs_attention else "Open" }}<span class="visually-hidden"> page {{ row.page_number }}</span></a>
+          {% endif %}
+          {% if row.can_retry %}
+          <button type="button" class="btn btn--small btn--secondary" id="{{ row_id }}-retry"
+                  hx-post="{{ batch_url }}/pages/{{ row.page_number }}/retry"
+                  hx-target="#batch-status" hx-swap="outerHTML" hx-sync="#batch-status:replace"
+                  hx-disabled-elt="this" data-focus-after="{{ row_id }}">Try again<span class="visually-hidden"> page {{ row.page_number }}</span></button>
+          {% endif %}
+          {% if row.can_extract_anyway %}
+          {# Success answers HX-Redirect to the page's review; a missing OCR result comes back as this fragment. #}
+          <button type="button" class="btn btn--small btn--secondary" id="{{ row_id }}-extract"
+                  hx-post="{{ batch_url }}/pages/{{ row.page_number }}/extract-anyway"
+                  hx-target="#batch-status" hx-swap="outerHTML" hx-sync="#batch-status:replace"
+                  {#- v1 warned of lost edits on undo-skip; the backend now restores the stored order unchanged:
+                  {%- if row.status == "skipped" %} hx-confirm="Read page {{ row.page_number }} again? Any edits made before it was skipped are lost."{% endif %} #}
+                  hx-disabled-elt="this" data-focus-after="{{ row_id }}">Read it anyway<span class="visually-hidden"> (page {{ row.page_number }})</span></button>
+          {% endif %}
+          {% if row.can_skip %}
+          <button type="button" class="btn btn--small btn--ghost" id="{{ row_id }}-skip"
+                  hx-post="{{ batch_url }}/pages/{{ row.page_number }}/skip"
+                  hx-target="#batch-status" hx-swap="outerHTML" hx-sync="#batch-status:replace"
+                  {#- {%- if row.status == "done" %} hx-confirm="Skip page {{ row.page_number }}? Its order won't be in the download. Undoing this reads the page again and loses your edits."{% endif %} #}
+                  {%- if row.status == "done" %} hx-confirm="Skip page {{ row.page_number }}? Its order won't be in the download. Read it anyway brings it back with your changes kept."{% endif %}
+                  hx-disabled-elt="this" data-focus-after="{{ row_id }}">Skip this page<span class="visually-hidden"> ({{ row.page_number }})</span></button>
+          {% endif %}
+        </div>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+  {% elif not conversion_failed %}
+  <p class="empty-state">{{ "Your pages will show up here in a moment." if is_processing else "We didn't find any pages in this file." }}</p>
+  {% endif %}
+</section>

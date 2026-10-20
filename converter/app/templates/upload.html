@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set current_step = "upload" %}
+{% block title %}Upload{% endblock %}
+{% block content %}
+<section class="panel upload-hero" aria-labelledby="upload-heading">
+  {# v1: <h1 id="upload-heading">Convert scanned Sales Orders</h1> #}
+  <h1 id="upload-heading">Turn scanned Sales Orders into Excel</h1>
+  {# v1: <p class="lead">Upload a PDF with one or more pages (up to 50), or a photo/scan of a single page. Each page is read on its own and becomes one order. Pages that aren't Sales Orders, like receipts, invoices and delivery forms, are skipped automatically and listed so you can check them.</p> #}
+  <p class="lead">Upload a scanned PDF or a photo. Each page becomes one order that you can check before downloading. Pages that aren't Sales Orders, like receipts or delivery forms, are set aside and listed for you.</p>
+
+  {# method/action keep the form usable if htmx fails to load. #}
+  <form class="upload-form"
+        method="post" action="/conversions" enctype="multipart/form-data"
+        hx-post="/conversions" hx-encoding="multipart/form-data"
+        hx-target="#upload-result" hx-swap="innerHTML"
+        hx-disabled-elt="find input, find button"
+        hx-indicator="#upload-progress">
+    {# v1 (plain file input):
+    <div class="field">
+      <label for="upload-file" class="field__label">Scanned file</label>
+      <input id="upload-file" name="file" type="file" required
+             accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff"
+             aria-describedby="upload-file-hint">
+      <p id="upload-file-hint" class="field__hint">PDF, PNG, JPG or TIFF, up to 25 MB. PDFs can have up to 50 pages; each page takes about 10-25 seconds to read.</p>
+    </div>
+    #}
+    <div class="dropzone" data-dropzone>
+      <input id="upload-file" class="dropzone__input" name="file" type="file" required
+             accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff"
+             aria-describedby="upload-file-hint upload-file-chosen">
+      <svg class="dropzone__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M20 16v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3"/></svg>
+      <label for="upload-file" class="dropzone__title"><span class="dropzone__title-action">Choose a file</span> or drag it here</label>
+      <p id="upload-file-hint" class="dropzone__hint">PDF, PNG, JPG or TIFF. Up to 25 MB and 50 pages. Each page takes about 10-25 seconds to read.</p>
+      <p id="upload-file-chosen" class="dropzone__chosen" hidden></p>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn--primary btn--large">Upload and convert</button>
+      <span id="upload-progress" class="htmx-indicator inline-status" role="status">
+        <span class="spinner" aria-hidden="true"></span> Uploading...
+      </span>
+    </div>
+    <div id="upload-result" aria-live="polite">{% if error %}{% with message = error %}{% include "_form_error.html" %}{% endwith %}{% endif %}</div>
+  </form>
+</section>
+
+<section class="panel" aria-labelledby="recent-heading">
+  <h2 id="recent-heading">Recent uploads</h2>
+  {% if conversions %}
+  <ul class="item-list">
+    {% for c in conversions %}
+    <li class="item-list__row">
+      <div class="item-list__main">
+        <a class="item-list__title" href="/conversions/{{ c.id }}">{{ c.original_filename or "Upload " ~ c.id }}</a>
+        <span class="item-list__meta">{{ m.fmt_datetime(c.created_at) }}</span>
+      </div>
+      {{ m.status_badge(c.status) }}
+      <button type="button" class="btn btn--small btn--danger-ghost"
+              hx-delete="/conversions/{{ c.id }}"
+              hx-target="closest li" hx-swap="outerHTML"
+              hx-confirm="Delete this upload and its file?"
+              hx-disabled-elt="this"
+              aria-label="Delete {{ c.original_filename or 'upload ' ~ c.id }}">Delete</button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty-state">Nothing uploaded yet. Your files will show up here so you can come back to them.</p>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Order Converter{% endblock %} - Order Converter</title>
+  {# allowEval/includeIndicatorStyles off for strict CSP; 422 swaps so inline validation errors render. #}
+  <meta name="htmx-config" content='{"allowEval": false, "includeIndicatorStyles": false, "responseHandling": [{"code": "204", "swap": false}, {"code": "[23]..", "swap": true}, {"code": "422", "swap": true}, {"code": "[45]..", "swap": false, "error": true}, {"code": "...", "swap": false}]}'>
+  <link rel="stylesheet" href="/static/app.css">
+  {# Vendored: htmx 2.0.11, @alpinejs/csp 3.17.4. app.js must run before Alpine to register components. #}
+  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+  <script src="/static/alpine.min.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+  {% set nav_links = [("/", "Upload"), ("/templates", "Excel templates")] %}
+  <header class="app-header" x-data="navMenu">
+    <div class="app-header__inner">
+      {# v1: <a class="app-name" href="/">Order Converter</a> #}
+      <a class="app-name" href="/">
+        <span class="app-name__mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h6M12 13v4"/></svg>
+        </span>
+        <span class="app-name__text">Order Converter</span>
+      </a>
+      <nav class="app-nav" aria-label="Main">
+        {% for href, label in nav_links %}
+        <a class="app-nav__link{% if request.url.path == href or (href != '/' and request.url.path.startswith(href)) %} app-nav__link--active{% endif %}"
+           href="{{ href }}"{% if request.url.path == href %} aria-current="page"{% endif %}>{{ label }}</a>
+        {% endfor %}
+      </nav>
+      <button type="button" class="app-nav__toggle" @click="toggle" :aria-expanded="expandedLabel" aria-controls="app-nav-mobile" aria-label="Open navigation menu">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" focusable="false" aria-hidden="true"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </button>
+    </div>
+    <nav id="app-nav-mobile" class="app-nav app-nav--mobile" aria-label="Main" x-show="open" x-cloak @click.outside="close">
+      {% for href, label in nav_links %}
+      <a class="app-nav__link{% if request.url.path == href or (href != '/' and request.url.path.startswith(href)) %} app-nav__link--active{% endif %}"
+         href="{{ href }}"{% if request.url.path == href %} aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </header>
+
+  {% set steps = [("upload", "Upload"), ("review", "Check"), ("template", "Template"), ("preview", "Preview"), ("download", "Download")] %}
+  {% set step_names = steps | map(attribute=0) | list %}
+  {% set current_index = step_names.index(current_step) if current_step in step_names else -1 %}
+  {% if current_index >= 0 %}
+  <nav class="steps" aria-label="Progress">
+    <ol class="steps__list">
+      {% for name, label in steps %}
+      {% set state = "done" if loop.index0 < current_index else ("current" if loop.index0 == current_index else "todo") %}
+      <li class="steps__item steps__item--{{ state }}"{% if state == "current" %} aria-current="step"{% endif %}>
+        <span class="steps__num" aria-hidden="true">{{ loop.index }}</span>
+        <span class="steps__label">{{ label }}</span>
+        {% if state == "done" %}<span class="visually-hidden">(completed)</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+  </nav>
+  {% endif %}
+
+  {# Filled by app.js when an htmx request fails (network down, 5xx). #}
+  <div id="request-error" class="request-error" role="alert" hidden>
+    <p class="request-error__text"></p>
+    <button type="button" class="btn btn--small btn--ghost request-error__dismiss">Dismiss</button>
+  </div>
+
+  <main id="main" class="page {% block page_class %}{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

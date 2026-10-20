@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set current_step = "review" %}
+{% block title %}Review page {{ page.page_number }}{% endblock %}
+{% block page_class %}page--wide{% endblock %}
+{% block content %}
+<nav class="order-nav" aria-label="Orders in this upload">
+  <a class="order-nav__back" href="{{ batch_url }}">All pages{% if conversion.original_filename %}<span class="visually-hidden"> of {{ conversion.original_filename }}</span>{% endif %}</a>
+  <p class="order-nav__position">Order {{ done_page_position }} of {{ done_page_count }} <span class="muted">&middot; page {{ page.page_number }}</span></p>
+  <div class="order-nav__steps">
+    {% if prev_page_url %}<a class="btn btn--small btn--ghost" href="{{ prev_page_url }}" rel="prev">Previous order</a>{% endif %}
+    {% if next_page_url %}<a class="btn btn--small btn--ghost" href="{{ next_page_url }}" rel="next">Next order</a>{% endif %}
+  </div>
+</nav>
+
+<div class="notice notice--info review-banner" role="note">
+  {# v1: <p><strong>We're still tuning how well this reads scanned forms.</strong>
+    Amounts and totals are often wrong or blank. Please check the highlighted fields against the scan before downloading.</p> #}
+  <p><strong>Please compare the boxes marked "Check this" or "Compare with scan" against the scan.</strong>
+    Amounts and totals are often misread or left blank.</p>
+</div>
+
+<div class="review" x-data="review" @focusin="onFocusIn" @keydown="onKeydown" @resize.window="measure">
+  <div class="review__scan">
+    <figure class="scan" x-ref="figure" :class="zoomClass"
+            data-page-width="{{ page_width or '' }}" data-page-height="{{ page_height or '' }}">
+      <div class="scan__toolbar">
+        <button type="button" class="btn btn--small btn--ghost" @click="toggleZoom" :aria-pressed="zoomed" aria-pressed="false">Zoom</button>
+        {# v1: href="/conversions/{{ conversion.id }}/page-image" #}
+        <a class="btn btn--small btn--ghost" href="{{ order_url }}/page-image" target="_blank" rel="noopener">Open full size</a>
+      </div>
+      <div class="scan__viewport" x-ref="viewport" tabindex="0" aria-label="Scanned page, scrollable">
+        <div class="scan__canvas">
+          {# v1: src="/conversions/{{ conversion.id }}/page-image" #}
+          <img x-ref="page" class="scan__image" src="{{ order_url }}/page-image"
+               alt="Scanned Sales Order, page {{ page.page_number }}{% if conversion.original_filename %} of {{ conversion.original_filename }}{% endif %}"
+               @load="measure" @error="onImageError">
+          <div class="scan__box" x-show="hasBox" x-cloak :style="boxStyle" aria-hidden="true"></div>
+        </div>
+      </div>
+      <p class="notice notice--error scan__error" x-show="imageFailed" x-cloak role="alert">The scan image couldn't be loaded. Use "Open full size" or reload the page.</p>
+      <figcaption class="scan__caption" aria-live="polite" x-text="caption">Click any box on the right to see where it is on the scan.</figcaption>
+    </figure>
+  </div>
+
+  <div class="review__editor" id="review-editor">
+    {% include "_review_summary.html" %}
+    <p id="review-announcer" class="visually-hidden" aria-live="polite"></p>
+
+    <details class="tier-legend">
+      <summary>What do the colors mean?</summary>
+      <ul class="tier-legend__list">
+        <li>{{ m.tier_badge("not_read") }} We couldn't read it. Type it in from the scan.</li>
+        <li>{{ m.tier_badge("check") }} We read something, but it may be wrong.</li>
+        <li>{{ m.tier_badge("verify") }} Often misread, even when it looks right. Compare it with the scan.</li>
+        <li>{{ m.tier_badge("checked") }} You changed it or marked it as correct.</li>
+      </ul>
+      <p class="muted">Tip: arrow keys and Enter move between boxes. Esc cancels what you're typing. Changes save as soon as you leave a box.</p>
+    </details>
+
+    <section class="editor-section" aria-labelledby="order-heading">
+      <h2 id="order-heading" class="editor-section__title">Order details</h2>
+      <div class="field-grid">
+        {% for field in ["order_ref", "order_date", "customer", "salesperson", "payment_terms"] if field in order_cells %}
+          {% with cell = order_cells[field] %}{% include "_field_cell.html" %}{% endwith %}
+        {% endfor %}
+      </div>
+    </section>
+
+    {% include "_line_items.html" %}
+
+    <section class="editor-section" aria-labelledby="totals-heading">
+      <h2 id="totals-heading" class="editor-section__title">Totals</h2>
+      {% include "_totals_check.html" %}
+      <div class="field-grid">
+        {% for field in ["untaxed_total", "total"] if field in order_cells %}
+          {% with cell = order_cells[field] %}{% include "_field_cell.html" %}{% endwith %}
+        {% endfor %}
+      </div>
+    </section>
+
+    {# v1: <a class="btn btn--primary" href="/conversions/{{ conversion.id }}/template">Continue to template</a> #}
+    {# Next order first: the template step waits for the whole upload, the list shows what is left. #}
+    <div class="review__next">
+      {% if next_page_url %}
+      <a class="btn btn--primary" href="{{ next_page_url }}">Next order</a>
+      <a class="btn btn--ghost" href="{{ batch_url }}">Back to all pages</a>
+      {% else %}
+      <a class="btn btn--primary" href="{{ batch_url }}">Back to all pages</a>
+      <a class="btn btn--ghost" href="{{ template_url }}">Choose Excel template</a>
+      {% endif %}
+      <p class="muted">Your changes are saved. You can come back later to finish. You'll pick one Excel template for the whole file, and downloading will ask you to confirm any fields you haven't checked yet.</p>
+    </div>
+  </div>
+</div>
+{% endblock %}

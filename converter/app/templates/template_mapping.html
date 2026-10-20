@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{# Only same-site relative paths, so a crafted ?next= can't point off-site or at javascript:. #}
+{% set next = next if (next is string and next.startswith("/") and not next.startswith("//")) else none %}
+{% if next %}{% set current_step = "template" %}{% endif %}
+{% block title %}Column mapping{% endblock %}
+{% block content %}
+<p class="back-link"><a href="/templates{% if next %}?next={{ next | urlencode }}{% endif %}">All templates</a></p>
+
+<section class="panel" aria-labelledby="mapping-heading">
+  <h1 id="mapping-heading">Set up columns: {{ template.name }}</h1>
+  <p class="lead">Choose what goes into each column of your template. "Custom / fill in manually" puts the same text you type into every row; "Leave empty" keeps the column blank.</p>
+
+  {% if error %}{% with message = error %}{% include "_form_error.html" %}{% endwith %}{% endif %}
+
+  {% if rows %}
+  <form method="post" action="/templates/{{ template.id }}/mapping" data-disable-on-submit x-data="columnMapping">
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <table class="mapping-table">
+      <thead>
+        <tr><th scope="col">Column in your template</th><th scope="col">What goes in it</th></tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <th scope="row">
+            <label for="map-{{ row.index }}">{{ row.header }}</label>
+            {% if row.suggested %}<span class="tag" id="map-{{ row.index }}-hint">Suggested</span>{% endif %}
+          </th>
+          <td>
+            <select id="map-{{ row.index }}" name="map_{{ row.index }}" @change="onFieldChange"
+                    {%- if row.suggested %} aria-describedby="map-{{ row.index }}-hint"{% endif %}>
+              {# <option value=""{% if not row.selected %} selected{% endif %}>Custom / fill in manually</option> #}
+              <option value=""{% if not row.selected %} selected{% endif %}>Leave empty</option>
+              <option value="{{ custom_choice }}" data-custom{% if row.selected == custom_choice %} selected{% endif %}>{{ custom_label }}</option>
+              {% for option in field_options %}
+              <option value="{{ option.value }}"{% if row.selected == option.value %} selected{% endif %}>{{ option.label }}</option>
+              {% endfor %}
+            </select>
+            <input class="custom-text" name="map_text_{{ row.index }}" type="text" maxlength="255" autocomplete="off"
+                   aria-label="Text for every row of {{ row.header }}" placeholder="Text for every row"
+                   value="{{ row.text }}"{% if row.selected != custom_choice %} hidden{% endif %}>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <div class="form-actions">
+      <button type="submit" class="btn btn--primary">Save columns</button>
+      <a class="btn btn--ghost" href="{{ next or '/templates' }}">Cancel</a>
+    </div>
+  </form>
+  {% else %}
+  <div class="notice notice--warning" role="status">
+    <p class="notice__title">No column names found.</p>
+    <p>The first row of this template is empty. Type the column names into the first row in Excel, then upload it again.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

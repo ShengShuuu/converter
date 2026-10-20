@@ -1,0 +1,50 @@
+{% macro fmt_datetime(value) -%}
+{%- if value is none or value == "" -%}
+-
+{%- elif value is string -%}
+<time datetime="{{ value }}">{{ value }}</time>
+{%- else -%}
+<time datetime="{{ value.isoformat() }}">{{ value.strftime("%Y-%m-%d %H:%M") }}</time>
+{%- endif -%}
+{%- endmacro %}
+
+{% set status_labels = {
+  "queued": "Waiting",
+  "processing": "Reading",
+  "done": "Ready to review",
+  "failed": "Failed",
+  "not_sales_order": "Not recognized",
+} %}
+
+{% macro status_badge(status) -%}
+<span class="status-badge status-badge--{{ status }}">{{ status_labels.get(status, status | replace("_", " ") | capitalize) }}</span>
+{%- endmacro %}
+
+{% set page_status_labels = {
+  "queued": "Waiting",
+  "processing": "Reading",
+  "done": "Sales Order",
+  "not_sales_order": "Not a Sales Order",
+  "failed": "Failed",
+  "skipped": "Skipped",
+} %}
+
+{% macro page_status_badge(status, id="") -%}
+<span class="page-status page-status--{{ status }}"{% if id %} id="{{ id }}"{% endif %}>
+  {%- if status == "processing" %}<span class="spinner spinner--small" aria-hidden="true"></span>{% endif -%}
+  {{ page_status_labels.get(status, status | replace("_", " ") | capitalize) }}</span>
+{%- endmacro %}
+
+{# Shared with preview.html so tier styling looks identical across screens. #}
+{% set tier_labels = {
+  "not_read": "Couldn't read",
+  "check": "Check this",
+  "verify": "Compare with scan",
+  "checked": "Checked",
+} %}
+
+{% macro tier_badge(tier, id="") -%}
+{%- if tier in tier_labels -%}
+<span class="tier-badge tier-badge--{{ tier }}"{% if id %} id="{{ id }}"{% endif %}>{{ tier_labels[tier] }}</span>
+{%- endif -%}
+{%- endmacro %}

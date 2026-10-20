@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% set current_step = "preview" %}
+{% block title %}Preview and download{% endblock %}
+{% block page_class %}page--wide{% endblock %}
+{% block content %}
+{% set unchecked = unchecked_count | default(0) %}
+{% set selected_format = format if format in ("xlsx", "csv") else "xlsx" %}
+
+{% if export_error %}
+<div class="notice notice--blocked" role="alert" id="export-blocked">
+  <p class="notice__title">Download not started</p>
+  <p>{{ export_error }}</p>
+</div>
+{% endif %}
+
+<section class="panel" aria-labelledby="preview-heading">
+  <h1 id="preview-heading">Check before you download</h1>
+  <p class="lead">This is exactly what goes into your file: {{ preview.order_count }} order{{ "s" if preview.order_count != 1 }}, {{ preview.rows | length }} row{{ "s" if preview.rows | length != 1 }}.
+    The Page column is only shown here, not in the file. Amounts show &#8369; here; the file has plain numbers.
+    {% if unchecked %}Values you haven't checked yet are marked.{% endif %}</p>
+
+  {% if preview.rows %}
+  <div class="table-scroll" tabindex="0" role="region" aria-labelledby="preview-heading">
+    <table class="preview-table">
+      <thead>
+        <tr><th scope="col">Page<span class="visually-hidden"> (not in the file)</span></th>{% for column in preview.columns %}<th scope="col"{% if is_money_path(template.column_map.get(column)) %} class="preview-money"{% endif %}>{{ column }}</th>{% endfor %}</tr>
+      </thead>
+      <tbody>
+        {% for row in preview.rows %}
+        <tr>
+          <td class="preview-page">{{ preview.row_pages[loop.index0] }}</td>
+          {% for cell in row %}
+          {% set tier = cell.tier or "ok" %}
+          {% set is_money = is_money_path(template.column_map.get(preview.columns[loop.index0])) %}
+          <td class="preview-cell tier--{{ tier }}{% if is_money %} preview-money{% endif %}">
+            {# v1: <span class="preview-cell__value">{{ cell.value if cell.value is not none else "" }}</span> #}
+            <span class="preview-cell__value">{{ cell.value | peso if is_money else (cell.value if cell.value is not none else "") }}</span>
+            {% if tier in ("not_read", "check", "verify") %}{{ m.tier_badge(tier) }}{% endif %}
+          </td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-state">Nothing to download yet: none of the orders has any items. Go back to the page list, open each order and add its items.</p>
+  {% endif %}
+  <p class="section-link">
+    {# v1: href="/conversions/{{ conversion.id }}" and "/conversions/{{ conversion.id }}/template" #}
+    <a href="{{ batch_url }}">Back to all pages</a> &middot;
+    <a href="{{ template_url }}">Change template</a>
+  </p>
+</section>
+
+<section class="panel" aria-labelledby="download-heading">
+  <h2 id="download-heading">Download</h2>
+  <form method="post" action="/conversions/{{ conversion.id }}/export" class="export-form">
+    <fieldset class="format-choice">
+      <legend>File format</legend>
+      <label class="radio"><input type="radio" name="format" value="xlsx"{% if selected_format == "xlsx" %} checked{% endif %}> Excel (.xlsx), using your template</label>
+      <label class="radio"><input type="radio" name="format" value="csv"{% if selected_format == "csv" %} checked{% endif %}> CSV (.csv)</label>
+    </fieldset>
+
+{#
+    {_# Same acknowledge_unchecked checkbox gates both per-field attention and missing/suspect item rows. #_}
+    {% set table_warnings = item_table_warnings | default([]) %}
+    {% if unchecked or table_warnings %}
+    <div class="notice {{ 'notice--blocked' if export_error else 'notice--warning' }} unchecked-ack">
+      {% if table_warnings %}
+      <p class="notice__title">Item rows may be missing</p>
+      <ul>{% for warning in table_warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+      {% endif %}
+      {% if unchecked %}
+      <p class="notice__title">{{ unchecked }} field{{ "s" if unchecked != 1 }} still unchecked</p>
+      <p>These may hold misread or missing values. <a href="/conversions/{{ conversion.id }}">Check them now</a>, or confirm below to download anyway.</p>
+      {% else %}
+      <p><a href="/conversions/{{ conversion.id }}">Go back to review</a> to add or fix the item rows, or confirm below to download anyway.</p>
+      {% endif %}
+      <label class="checkbox">
+        <input type="checkbox" name="acknowledge_unchecked" value="1"{% if export_error %} autofocus{% endif %}>
+        I understand
+        {%- if table_warnings %} the item rows may be missing or wrong{% if unchecked %} and{% endif %}{% endif %}
+        {%- if unchecked %} {{ unchecked }} field{{ "s are" if unchecked != 1 else " is" }} unchecked and may be wrong{% endif %}. Download anyway.
+      </label>
+    </div>
+    {% endif %}
+
+#}
+    {% if skipped_pages %}
+    <div class="notice notice--info">
+      <p>Not in this download: page{{ "s" if skipped_pages | length != 1 }} {{ skipped_pages | join(", ") }} (not a Sales Order, or you skipped it). <a href="{{ batch_url }}">Change this on the page list.</a></p>
+    </div>
+    {% endif %}
+
+    {# One acknowledge_unchecked checkbox covers every reason the backend gates on. #}
+    {% if needs_acknowledgement %}
+    <div class="notice {{ 'notice--blocked' if export_error else 'notice--warning' }} unchecked-ack">
+      {% if orders_needing_attention %}
+      <p class="notice__title">{{ orders_needing_attention | length }} order{{ "s" if orders_needing_attention | length != 1 }} still need{{ "s" if orders_needing_attention | length == 1 }} a look</p>
+      <ul class="attention-list">
+        {% for a in orders_needing_attention %}
+        <li><a href="/conversions/{{ conversion.id }}/pages/{{ a.page_number }}">{{ a.label }}</a>
+          {%- if a.unchecked_count %}: {{ a.unchecked_count }} field{{ "s" if a.unchecked_count != 1 }} not checked yet{% endif %}
+          {%- if a.item_table_warnings %}<ul>{% for warning in a.item_table_warnings %}<li>{{ warning }}</li>{% endfor %}</ul>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      {% if failed_pages %}
+      <p class="notice__title">Page{{ "s" if failed_pages | length != 1 }} {{ failed_pages | join(", ") }} could not be read</p>
+      <p>{{ "Their orders are" if failed_pages | length != 1 else "Its order is" }} missing from this download. <a href="{{ batch_url }}">Try again or skip on the page list.</a></p>
+      {% endif %}
+      {% if duplicate_order_refs %}
+      <p class="notice__title">Same order number on more than one page</p>
+      <ul class="attention-list">
+        {% for order_ref, ref_pages in duplicate_order_refs.items() %}
+        <li>{{ order_ref }}: pages {{ ref_pages | join(", ") }}. Its rows would appear more than once; skip the extra page{{ "s" if ref_pages | length > 2 }} if it is a duplicate scan.</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+      <label class="checkbox">
+        <input type="checkbox" name="acknowledge_unchecked" value="1"{% if export_error %} autofocus{% endif %}>
+        I've seen the items above and want to download anyway.
+      </label>
+    </div>
+    {% endif %}
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn--primary btn--large"{% if not preview.rows %} disabled{% endif %}>Download file</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

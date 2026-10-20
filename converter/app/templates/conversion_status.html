@@ -1,0 +1,8 @@
+{# Superseded by batch.html/_batch_status.html; no route renders this. Kept for rollback only. #}
+{% extends "base.html" %}
+{% set current_step = "upload" %}
+{% block title %}Reading scan{% endblock %}
+{% block content %}
+{% if conversion.original_filename %}<p class="file-context">File: <strong>{{ conversion.original_filename }}</strong></p>{% endif %}
+{% include "_status.html" %}
+{% endblock %}

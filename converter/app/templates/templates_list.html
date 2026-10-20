@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{# Only same-site relative paths, so a crafted ?next= can't point off-site or at javascript:. #}
+{% set next = next if (next is string and next.startswith("/") and not next.startswith("//")) else none %}
+{% if next %}{% set current_step = "template" %}{% endif %}
+{% block title %}Templates{% endblock %}
+{% block content %}
+{% if next %}<p class="back-link"><a href="{{ next }}">Back to choosing a template</a></p>{% endif %}
+
+<section class="panel" aria-labelledby="templates-heading">
+  <h1 id="templates-heading">Excel templates</h1>
+  {% if templates %}
+  <ul class="item-list">
+    {% for t in templates %}
+    <li class="item-list__row">
+      <div class="item-list__main">
+        <span class="item-list__title">{{ t.name }}</span>
+        <span class="item-list__meta">Added {{ m.fmt_datetime(t.created_at) }}</span>
+      </div>
+      <a class="btn btn--small btn--ghost" href="/templates/{{ t.id }}{% if next %}?next={{ next | urlencode }}{% endif %}"
+         aria-label="Edit columns for {{ t.name }}">Edit columns</a>
+      <button type="button" class="btn btn--small btn--danger-ghost"
+              hx-delete="/templates/{{ t.id }}"
+              hx-target="closest li" hx-swap="outerHTML"
+              hx-confirm="Delete the template &quot;{{ t.name }}&quot;?"
+              hx-disabled-elt="this"
+              aria-label="Delete template {{ t.name }}">Delete</button>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty-state">No templates yet. Upload one below, or build one by hand.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="template-upload-heading">
+  <h2 id="template-upload-heading">Add a new template</h2>
+  <p class="muted">An Excel (.xlsx) file with the column names in the first row. Its formatting is kept in your download; any other sheets are left out.</p>
+  {% if error %}{% with message = error %}{% include "_form_error.html" %}{% endwith %}{% endif %}
+  <form method="post" action="/templates" enctype="multipart/form-data" data-disable-on-submit>
+    {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+    <div class="field">
+      <label for="template-name" class="field__label">Template name</label>
+      <input id="template-name" name="name" type="text" required maxlength="120" autocomplete="off"
+             value="{{ form_name | default('') }}">
+    </div>
+    {# v1 (plain file input):
+    <div class="field">
+      <label for="template-file" class="field__label">Template file (.xlsx)</label>
+      <input id="template-file" name="file" type="file" required
+             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+    </div>
+    #}
+    <div class="field">
+      <div class="dropzone dropzone--compact" data-dropzone>
+        <input id="template-file" class="dropzone__input" name="file" type="file" required
+               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+               aria-describedby="template-file-hint template-file-chosen">
+        <svg class="dropzone__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 16V4"/><path d="M7 9l5-5 5 5"/><path d="M20 16v3a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-3"/></svg>
+        <label for="template-file" class="dropzone__title"><span class="dropzone__title-action">Choose an Excel file</span> or drag it here</label>
+        <p id="template-file-hint" class="dropzone__hint">.xlsx only</p>
+        <p id="template-file-chosen" class="dropzone__chosen" hidden></p>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn--primary">Upload template</button>
+      <a class="btn btn--ghost" href="/templates/new-manual{% if next %}?next={{ next | urlencode }}{% endif %}">Or build one by hand</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

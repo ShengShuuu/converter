@@ -1,0 +1,24 @@
+{% set line_fields = ["product", "quantity", "unit_price", "taxes", "subtotal"] %}
+<li class="line-row" id="line-{{ row.index }}" data-line="{{ row.index }}" aria-labelledby="line-{{ row.index }}-title">
+  <div class="line-row__head">
+    <h3 class="line-row__title" id="line-{{ row.index }}-title">Item {{ row.index + 1 }}</h3>
+    {# v1: hx-delete="/conversions/{{ conversion.id }}/lines/{{ row.index }}" #}
+    <button type="button" class="btn btn--small btn--danger-ghost line-row__delete"
+            hx-delete="{{ order_url }}/lines/{{ row.index }}"
+            hx-target="#line-items" hx-swap="outerHTML"
+            hx-sync="#review-editor:queue all"
+            hx-confirm="Remove item {{ row.index + 1 }}? This can't be undone."
+            hx-disabled-elt="this"
+            data-focus-after="add-line">Remove item<span class="visually-hidden"> {{ row.index + 1 }}</span></button>
+  </div>
+  {% if row.messages %}
+  <ul class="line-row__messages">
+    {% for message in row.messages %}<li>{{ message }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  <div class="line-row__cells">
+    {% for field in line_fields if field in row.cells %}
+      {% with cell = row.cells[field] %}{% include "_field_cell.html" %}{% endwith %}
+    {% endfor %}
+  </div>
+</li>

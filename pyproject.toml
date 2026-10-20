@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "converter"
+version = "0.1.0"
+description = "Scanned sales-order to Excel converter (OCR, review, template export)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "jinja2",
+    "uvicorn",
+    "python-multipart",
+    "pydantic>=2",
+    "pdf2image",
+    "opencv-python-headless",
+    "pillow",
+    "rapidfuzz",
+    "openpyxl",
+]
+
+[project.optional-dependencies]
+# dev = ["pytest", "httpx"]
+dev = ["pytest", "httpx2"]
+
+[tool.setuptools.packages.find]
+include = ["converter*"]
+
+[tool.setuptools.package-data]
+# converter = ["profiles/*.json", "store/*.sql"]
+converter = ["profiles/*.json", "store/*.sql", "app/templates/**/*", "app/static/**/*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
